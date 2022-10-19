@@ -297,15 +297,15 @@ function game(canvas: HTMLCanvasElement) {
     }, 1000);
     window.addEventListener("resize", resize);
     window.addEventListener("wheel", wheel);
-    document.addEventListener("mousedown", mousedown);
     document.addEventListener("keydown", keydown);
+    document.addEventListener("mousedown", mousedown);
     document.addEventListener("mousemove", mousemove);
     document.addEventListener("mouseup", mouseup);
     return () => {
         window.removeEventListener("resize", resize);
         window.removeEventListener("wheel", wheel);
-        document.removeEventListener("mousedown", mousedown);
         document.removeEventListener("keydown", keydown);
+        document.removeEventListener("mousedown", mousedown);
         document.removeEventListener("mousemove", mousemove);
         document.removeEventListener("mouseup", mouseup);
         clearInterval(interval);
