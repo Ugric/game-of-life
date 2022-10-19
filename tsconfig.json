@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "allowJs": true,
-    "target": "ES3",
+    "target": "ES2015",
     "module": "ES2020",
     "lib": ["es2020", "DOM", "WebWorker", "DOM.Iterable", "ES2015.Promise"],
     "jsx": "react-jsx",
