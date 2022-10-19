@@ -5,6 +5,45 @@ let frames = 0;
 let zoom = 15;
 let fps = 0;
 let tps = 5;
+let currenttps = 0;
+const defaultsave = `{
+    "g": {
+        "0": { "-5": true, "-9": true },
+        "2": { "-9": true, "-10": true, "-5": true, "-4": true },
+        "3": {},
+        "4": {},
+        "5": {},
+        "6": {},
+        "7": {},
+        "8": {},
+        "9": {},
+        "10": {},
+        "11": {},
+        "12": { "-8": true, "-7": true },
+        "13": { "-8": true, "-7": true },
+        "-22": { "-6": true, "-5": true },
+        "-21": { "-5": true, "-6": true },
+        "-20": {},
+        "-19": {},
+        "-18": {},
+        "-17": {},
+        "-16": {},
+        "-15": {},
+        "-14": {},
+        "-13": {},
+        "-12": { "-6": true, "-5": true, "-4": true },
+        "-11": { "-3": true, "-7": true },
+        "-10": { "-2": true, "-8": true },
+        "-8": { "-5": true },
+        "-9": { "-2": true, "-8": true },
+        "-6": { "-6": true, "-5": true, "-4": true },
+        "-7": { "-3": true, "-7": true },
+        "-5": { "-5": true },
+        "-3": {},
+        "-2": { "-6": true, "-7": true, "-8": true },
+        "-1": { "-6": true, "-7": true, "-8": true }
+    }
+}`;
 const snooze = (ms: number) =>
     new Promise((resolver) => setTimeout(resolver, ms));
 let running = true;
@@ -30,6 +69,10 @@ UI["tps"] = (ctx) => {
 UI["zoom"] = (ctx) => {
     ctx.font = "30px Arial";
     ctx.fillText(`zoom: ${zoom.toFixed(1)}`, 10, 200);
+};
+UI["currenttps"] = (ctx) => {
+    ctx.font = "30px Arial";
+    ctx.fillText(`current tps: ${currenttps}`, 10, 250);
 };
 UI["paused"] = (ctx) => {
     ctx.font = "30px Arial";
@@ -129,12 +172,12 @@ function tick() {
 }
 
 function load(char: string) {
-    const loaded = JSON.parse(localStorage.getItem("save") || "{}");
+    const loaded = JSON.parse(localStorage.getItem("save") || defaultsave);
     if (!loaded[char]) return alert("cant load!");
     board = loaded[char];
 }
 function save(char: string) {
-    const loaded = JSON.parse(localStorage.getItem("save") || "{}");
+    const loaded = JSON.parse(localStorage.getItem("save") || defaultsave);
     loaded[char] = board;
     localStorage.setItem("save", JSON.stringify(loaded));
     alert("saved!");
@@ -143,7 +186,7 @@ function save(char: string) {
 function game(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
+    let ticks = 0;
     let down = false;
     let last = { x: 0, y: 0 };
     let drag = false;
@@ -233,6 +276,7 @@ function game(canvas: HTMLCanvasElement) {
         while (running) {
             if (!paused) {
                 tick();
+                ticks++;
             }
             await snooze(1000 / tps);
         }
@@ -243,6 +287,10 @@ function game(canvas: HTMLCanvasElement) {
     const fpsinterval = setInterval(() => {
         fps = frames;
         frames = 0;
+    }, 1000);
+    const tpsinterval = setInterval(() => {
+        currenttps = ticks;
+        ticks = 0;
     }, 1000);
     window.addEventListener("resize", resize);
     window.addEventListener("wheel", wheel);
