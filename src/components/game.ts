@@ -7,10 +7,6 @@ let fps = 0;
 let tps = 5;
 const snooze = (ms: number) =>
     new Promise((resolver) => setTimeout(resolver, ms));
-
-board[-1] = {};
-board[1] = {};
-board[0] = {};
 let running = true;
 let paused = true;
 
@@ -29,7 +25,7 @@ UI["fps"] = (ctx) => {
 };
 UI["tps"] = (ctx) => {
     ctx.font = "30px Arial";
-    ctx.fillText(`tps: ${tps}`, 10, 150);
+    ctx.fillText(`tps (0 = ∞): ${tps}`, 10, 150);
 };
 UI["zoom"] = (ctx) => {
     ctx.font = "30px Arial";
@@ -45,13 +41,8 @@ const render = (ctx: CanvasRenderingContext2D) => {
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, width, height);
 
-    // ctx.beginPath();
-    // ctx.rect(0, 0, width / 10, width / 10);
-    // ctx.fillStyle = "white";
-    // ctx.fill();
-
     ctx.fillStyle = "white";
-
+    const visable = Math.max(zoom, 1);
     for (const xstr of Object.keys(board)) {
         const x: number = Number(xstr);
         for (const ystr of Object.keys(board[x])) {
@@ -61,12 +52,32 @@ const render = (ctx: CanvasRenderingContext2D) => {
             ctx.rect(
                 x * zoom + width / 2 + camera.x * zoom,
                 y * zoom + height / 2 + camera.y * zoom,
-                zoom,
-                zoom
+                visable,
+                visable
             );
             ctx.fill();
         }
     }
+    // if (zoom > 10) {
+    //     ctx.strokeStyle = "#4f4f4f";
+    //     const scrollX = (camera.x % 1) * zoom;
+    //     const scrollY = (camera.y % 1) * zoom;
+    //     for (let x = 0; x < width / zoom + 1; x++) {
+    //         const coord = x * zoom + camera.x * zoom;
+    //         ctx.beginPath();
+    //         ctx.moveTo(coord, 0);
+    //         ctx.lineTo(coord, height);
+    //         ctx.stroke();
+    //     }
+    //     for (let y = 0; y < height / zoom + 1; y++) {
+    //         const coord = y * zoom + camera.y * zoom;
+    //         console.log(coord);
+    //         ctx.beginPath();
+    //         ctx.moveTo(0, coord + 1);
+    //         ctx.lineTo(width, coord + 1);
+    //         ctx.stroke();
+    //     }
+    // }
 
     Object.keys(UI).map((key) => UI[key](ctx));
     frames++;
@@ -117,15 +128,34 @@ function tick() {
     board = newboard;
 }
 
+function load(char: string) {
+    const loaded = JSON.parse(localStorage.getItem("save") || "{}");
+    if (!loaded[char]) return alert("cant load!");
+    board = loaded[char];
+}
+function save(char: string) {
+    const loaded = JSON.parse(localStorage.getItem("save") || "{}");
+    loaded[char] = board;
+    localStorage.setItem("save", JSON.stringify(loaded));
+    alert("saved!");
+}
+
 function game(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    let down = false;
+    let last = { x: 0, y: 0 };
+    let drag = false;
+    let saving = false;
+    let loading = false;
+
     const resize = () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         render(ctx);
     };
-    window.addEventListener("wheel", (e) => {
+    const wheel = (e: WheelEvent) => {
         if (e.deltaY != 0) {
             const amount = Math.abs(e.deltaY) / 100 + 1;
             if (e.deltaY > 0) {
@@ -134,26 +164,33 @@ function game(canvas: HTMLCanvasElement) {
                 zoom *= amount;
             }
         }
-    });
-    window.addEventListener("resize", resize);
-    let down = false;
-    let last = { x: 0, y: 0 };
-    let drag = false;
-
-    document.addEventListener("mousedown", (e) => {
+    };
+    const mousedown = (e: MouseEvent) => {
         down = true;
         drag = false;
         last = { x: e.clientX, y: e.clientY };
-    });
-
-    document.addEventListener("keydown", (e) => {
-        if (e.key == "r") {
+    };
+    const keydown = (e: KeyboardEvent) => {
+        if (e.ctrlKey && e.key === "l") {
+            e.preventDefault();
+            loading = true;
+        } else if (e.ctrlKey && e.key === "s") {
+            e.preventDefault();
+            saving = true;
+        } else if (e.ctrlKey && e.key === "r") {
+            e.preventDefault();
             camera.x = 0;
             camera.y = 0;
             zoom = 15;
             board = {};
             paused = true;
             tps = 5;
+        } else if (saving) {
+            saving = false;
+            save(e.key);
+        } else if (loading) {
+            loading = false;
+            load(e.key);
         } else if (e.key == " ") {
             paused = !paused;
         } else if (e.code == "ArrowUp") {
@@ -162,8 +199,8 @@ function game(canvas: HTMLCanvasElement) {
             tps -= Math.round(e.shiftKey ? tps / 2 : 1);
         }
         if (tps < 0) tps = 0;
-    });
-    document.addEventListener("mousemove", (e) => {
+    };
+    const mousemove = (e: MouseEvent) => {
         drag = true;
         if (down) {
             const difference = { x: last.x - e.clientX, y: last.y - e.clientY };
@@ -171,8 +208,8 @@ function game(canvas: HTMLCanvasElement) {
             camera.y -= difference.y / zoom;
             last = { x: e.clientX, y: e.clientY };
         }
-    });
-    document.addEventListener("mouseup", (e) => {
+    };
+    const mouseup = (e: MouseEvent) => {
         down = false;
         if (!drag) {
             const { x, y } = e;
@@ -191,14 +228,7 @@ function game(canvas: HTMLCanvasElement) {
                 delete board[blockx][blocky];
             }
         }
-    });
-    const interval = setInterval(() => {
-        render(ctx);
-    }, (1 / 60) * 1000);
-    const fpsinterval = setInterval(() => {
-        fps = frames;
-        frames = 0;
-    }, 1000);
+    };
     (async () => {
         while (running) {
             if (!paused) {
@@ -207,8 +237,26 @@ function game(canvas: HTMLCanvasElement) {
             await snooze(1000 / tps);
         }
     })();
+    const interval = setInterval(() => {
+        render(ctx);
+    }, (1 / 60) * 1000);
+    const fpsinterval = setInterval(() => {
+        fps = frames;
+        frames = 0;
+    }, 1000);
+    window.addEventListener("resize", resize);
+    window.addEventListener("wheel", wheel);
+    document.addEventListener("mousedown", mousedown);
+    document.addEventListener("keydown", keydown);
+    document.addEventListener("mousemove", mousemove);
+    document.addEventListener("mouseup", mouseup);
     return () => {
         window.removeEventListener("resize", resize);
+        window.removeEventListener("wheel", wheel);
+        document.removeEventListener("mousedown", mousedown);
+        document.removeEventListener("keydown", keydown);
+        document.removeEventListener("mousemove", mousemove);
+        document.removeEventListener("mouseup", mouseup);
         clearInterval(interval);
         clearInterval(fpsinterval);
         running = false;
