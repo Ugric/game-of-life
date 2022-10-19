@@ -274,11 +274,14 @@ function game(canvas: HTMLCanvasElement) {
     };
     (async () => {
         while (running) {
+            let delta = 0;
             if (!paused) {
+                const start = Date.now();
                 tick();
                 ticks++;
+                delta = Date.now() - start;
             }
-            await snooze(1000 / tps);
+            await snooze(Math.max(1000 / tps - delta, 0));
         }
     })();
     const interval = setInterval(() => {
