@@ -5,6 +5,8 @@ let frames = 0;
 let zoom = 15;
 let fps = 0;
 let tps = 5;
+let blocks = 0;
+let gen = 0;
 let currenttps = 0;
 const defaultsave = `{
     "g": {
@@ -74,6 +76,16 @@ UI["currenttps"] = (ctx) => {
     ctx.font = "30px Arial";
     ctx.fillText(`current tps: ${currenttps}`, 10, 250);
 };
+UI["blocks"] = (ctx) => {
+    ctx.font = "30px Arial";
+    ctx.fillText(`blocks: ${blocks}`, 10, 300);
+};
+
+UI["gen"] = (ctx) => {
+    ctx.font = "30px Arial";
+    ctx.fillText(`gen: ${gen}`, 10, 350);
+};
+
 UI["paused"] = (ctx) => {
     ctx.font = "30px Arial";
     paused ? ctx.fillText(`paused`, 10, ctx.canvas.height - 25) : null;
@@ -86,11 +98,12 @@ const render = (ctx: CanvasRenderingContext2D) => {
 
     ctx.fillStyle = "white";
     const visable = Math.max(zoom, 1);
+    blocks = 0;
     for (const xstr of Object.keys(board)) {
         const x: number = Number(xstr);
+        blocks += Object.keys(board[x]).length;
         for (const ystr of Object.keys(board[x])) {
             const y: number = Number(ystr);
-            if (!board[x][y]) continue;
             ctx.beginPath();
             ctx.rect(
                 x * zoom + width / 2 + camera.x * zoom,
@@ -102,19 +115,18 @@ const render = (ctx: CanvasRenderingContext2D) => {
         }
     }
     // if (zoom > 10) {
-    //     ctx.strokeStyle = "#4f4f4f";
+    //     ctx.strokeStyle = "#1f1f1f";
     //     const scrollX = (camera.x % 1) * zoom;
     //     const scrollY = (camera.y % 1) * zoom;
-    //     for (let x = 0; x < width / zoom + 1; x++) {
-    //         const coord = x * zoom + camera.x * zoom;
+    //     for (let x = 0; x < width / zoom; x++) {
+    //         const coord = x * zoom + width / 2 + camera.x * zoom;
     //         ctx.beginPath();
     //         ctx.moveTo(coord, 0);
     //         ctx.lineTo(coord, height);
     //         ctx.stroke();
     //     }
-    //     for (let y = 0; y < height / zoom + 1; y++) {
-    //         const coord = y * zoom + camera.y * zoom;
-    //         console.log(coord);
+    //     for (let y = 0; y < height / zoom; y++) {
+    //         const coord = y * zoom;
     //         ctx.beginPath();
     //         ctx.moveTo(0, coord + 1);
     //         ctx.lineTo(width, coord + 1);
@@ -128,7 +140,7 @@ const render = (ctx: CanvasRenderingContext2D) => {
 
 function tick() {
     const newboard: Record<number, Record<number, true>> = {};
-    const empty: Array<[number, number]> = [];
+    const empty: Record<string, { n: number; coord: [number, number] }> = {};
     for (const xstr of Object.keys(board)) {
         const x: number = Number(xstr);
         for (const ystr of Object.keys(board[x])) {
@@ -139,7 +151,13 @@ function tick() {
                     if (nx != 0 || ny != 0) {
                         if (board?.[x + nx]?.[y + ny]) naubours++;
                         else {
-                            empty.push([x + nx, y + ny]);
+                            const coord = `${x + nx}x${y + ny}`;
+                            if (!empty[coord])
+                                empty[coord] = {
+                                    n: 0,
+                                    coord: [x + nx, y + ny],
+                                };
+                            empty[coord].n++;
                         }
                     }
                 }
@@ -152,16 +170,9 @@ function tick() {
             }
         }
     }
-    for (const [x, y] of empty) {
-        let naubours = 0;
-        for (let nx = -1; nx <= 1; nx++) {
-            for (let ny = -1; ny <= 1; ny++) {
-                if (nx != 0 || ny != 0) {
-                    if (board?.[x + nx]?.[y + ny]) naubours++;
-                }
-            }
-        }
-        if (naubours == 3) {
+    for (const key of Object.keys(empty)) {
+        if (empty[key].n == 3) {
+            const [x, y] = empty[key].coord;
             if (!newboard[x]) {
                 newboard[x] = {};
             }
@@ -169,6 +180,7 @@ function tick() {
         }
     }
     board = newboard;
+    gen++;
 }
 
 function load(char: string) {
@@ -192,6 +204,7 @@ function game(canvas: HTMLCanvasElement) {
     let drag = false;
     let saving = false;
     let loading = false;
+    let autohidecursor: NodeJS.Timer | null = null;
 
     const resize = () => {
         canvas.width = window.innerWidth;
@@ -209,14 +222,48 @@ function game(canvas: HTMLCanvasElement) {
         }
     };
     const mousedown = (e: MouseEvent) => {
-        down = true;
-        drag = false;
-        last = { x: e.clientX, y: e.clientY };
+        if (e.button == 0) {
+            down = true;
+            drag = false;
+            last = { x: e.clientX, y: e.clientY };
+        }
     };
     const keydown = (e: KeyboardEvent) => {
         if (e.ctrlKey && e.key === "l") {
             e.preventDefault();
             loading = true;
+        } else if (e.ctrlKey && e.key === "i") {
+            e.preventDefault();
+            const width = Math.min(canvas.width / zoom, 500);
+            const height = Math.min(canvas.height / zoom, 500);
+            const xnow = Math.round(camera.x + width / 2);
+            const ynow = Math.round(camera.y + height / 2);
+            for (let x = 0; x < width; x++) {
+                for (let y = 0; y < height; y++) {
+                    if (!board[x - xnow]) {
+                        board[x - xnow] = {};
+                    }
+                    if (Math.random() > 0.5) {
+                        board[x - xnow][y - ynow] = true;
+                    } else {
+                        delete board[x - xnow][y - ynow];
+                    }
+                }
+            }
+        } else if (e.ctrlKey && e.key === "m") {
+            e.preventDefault();
+            const width = Math.min(canvas.width / zoom, 500);
+            const height = Math.min(canvas.height / zoom, 500);
+            const xnow = Math.round(camera.x + width / 2);
+            const ynow = Math.round(camera.y + height / 2);
+            for (let x = 0; x < width; x++) {
+                for (let y = 0; y < height; y++) {
+                    if (!board[x - xnow]) {
+                        board[x - xnow] = {};
+                    }
+                    board[x - xnow][y - ynow] = true;
+                }
+            }
         } else if (e.ctrlKey && e.key === "s") {
             e.preventDefault();
             saving = true;
@@ -228,6 +275,7 @@ function game(canvas: HTMLCanvasElement) {
             board = {};
             paused = true;
             tps = 5;
+            gen = 0;
         } else if (saving) {
             saving = false;
             save(e.key);
@@ -236,6 +284,7 @@ function game(canvas: HTMLCanvasElement) {
             load(e.key);
         } else if (e.key == " ") {
             paused = !paused;
+            canvas.style.cursor = paused ? "" : "none";
         } else if (e.code == "ArrowUp") {
             tps += Math.round(e.shiftKey ? tps : 1);
         } else if (e.code == "ArrowDown" && tps > 0) {
@@ -245,8 +294,21 @@ function game(canvas: HTMLCanvasElement) {
     };
     const mousemove = (e: MouseEvent) => {
         drag = true;
+        if (autohidecursor) {
+            clearTimeout(autohidecursor);
+        }
+        canvas.style.cursor = "";
+        if (!paused)
+            autohidecursor = setTimeout(
+                () => (canvas.style.cursor = "none"),
+                5000
+            );
         if (down) {
-            const difference = { x: last.x - e.clientX, y: last.y - e.clientY };
+            canvas.style.cursor = "move";
+            const difference = {
+                x: last.x - e.clientX,
+                y: last.y - e.clientY,
+            };
             camera.x -= difference.x / zoom;
             camera.y -= difference.y / zoom;
             last = { x: e.clientX, y: e.clientY };
@@ -254,6 +316,7 @@ function game(canvas: HTMLCanvasElement) {
     };
     const mouseup = (e: MouseEvent) => {
         down = false;
+        canvas.style.cursor = "";
         if (!drag) {
             const { x, y } = e;
             const blockx = Math.floor(
@@ -310,6 +373,7 @@ function game(canvas: HTMLCanvasElement) {
         document.removeEventListener("mouseup", mouseup);
         clearInterval(interval);
         clearInterval(fpsinterval);
+        clearInterval(tpsinterval);
         running = false;
     };
 }
